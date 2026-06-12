@@ -1,0 +1,38 @@
+name: Price Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (sirf prices print karo, kuch likho mat)"
+        type: boolean
+        default: false
+
+  schedule:
+    - cron: "0 4 * * *"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run price sync
+        env:
+          SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
+          SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            node sync-prices.js --dry-run
+          else
+            node sync-prices.js
+          fi
