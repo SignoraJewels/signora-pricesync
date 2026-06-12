@@ -108,6 +108,7 @@ jobs:
                   markup: metafield(namespace: "sjw", key: "markup_multiplier") { value }
                   weights: metafield(namespace: "sjw", key: "metal_weights") { value }
                   side: metafield(namespace: "sjw", key: "side_diamond_ct") { value }
+                  silverWeight: metafield(namespace: "sjw", key: "silver_weight") { value }
                   variants(first: 250) {
                     edges { node { id selectedOptions { name value } } }
                   }
@@ -165,12 +166,13 @@ jobs:
 
               const markup = p.markup ? parseFloat(p.markup.value) : null;
               const sideCt = p.side ? (parseFloat(p.side.value) || 0) : 0;
+              const silverWeight = p.silverWeight ? (parseFloat(p.silverWeight.value) || 0) : 0;
               let weights = {};
               try { weights = p.weights ? JSON.parse(p.weights.value) : {}; } catch (e) { weights = {}; }
 
               console.log(`\n${p.title}`);
               if (markup == null) { console.warn('  ! No sjw.markup_multiplier set — skipping.'); continue; }
-              if (!Object.keys(weights).length) { console.warn('  ! No sjw.metal_weights JSON set — skipping.'); continue; }
+              if (!Object.keys(weights).length && !silverWeight) { console.warn('  ! No sjw.metal_weights JSON set — skipping.'); continue; }
 
               const updates = [];
               for (const { node } of p.variants.edges) {
@@ -180,11 +182,11 @@ jobs:
                 const caratVal = opts['carat'] || Object.values(opts)[1];
 
                 const carat = caratOf(caratVal || '');
-                const alloyG = weights[metalVal];
                 const silver = isSilver(metalVal || '');
+                const alloyG = silver ? silverWeight : weights[metalVal];
                 if (!silver && !karatKey(metalVal || '')) { console.warn(`  ? karat? "${metalVal}" — skipped`); continue; }
                 if (carat == null)  { console.warn(`  ? carat? "${caratVal}" — skipped`); continue; }
-                if (alloyG == null) { console.warn(`  ? no weight for "${metalVal}" in metal_weights — skipped`); continue; }
+                if (alloyG == null || alloyG === 0) { console.warn(`  ? no weight for "${metalVal}" — skipped`); continue; }
 
                 const mUp = silver ? (rates.markup_silver != null ? rates.markup_silver : markup) : markup;
                 const usd = computeUsd(rates, alloyG, metalVal, carat, mUp, sideCt);
