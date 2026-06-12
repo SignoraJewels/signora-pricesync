@@ -107,6 +107,7 @@ jobs:
                   id title
                   markup: metafield(namespace: "sjw", key: "markup_multiplier") { value }
                   weights: metafield(namespace: "sjw", key: "metal_weights") { value }
+                  side: metafield(namespace: "sjw", key: "side_diamond_ct") { value }
                   variants(first: 250) {
                     edges { node { id selectedOptions { name value } } }
                   }
@@ -115,7 +116,7 @@ jobs:
             return data.productByHandle;
           }
 
-          function computeUsd(rates, alloyG, metalVal, carat, markup) {
+          function computeUsd(rates, alloyG, metalVal, carat, markup, sideCt) {
             const dRate = rates[caratRateKey(carat)];
             if (dRate == null) return null;
             let metalInr;
@@ -128,7 +129,7 @@ jobs:
               if (touch == null || rates.gold_24k_rate_inr == null) return null;
               metalInr = alloyG * (touch / 100) * rates.gold_24k_rate_inr;
             }
-            const diamondInr = carat * dRate * rates.usd_to_inr;
+            const diamondInr = (carat + (sideCt || 0)) * dRate * rates.usd_to_inr;  // center + fixed halo/side carat
             const laborInr   = (metalInr + diamondInr) * (rates.labor_pct / 100);
             const totalCost  = metalInr + diamondInr + laborInr;
             const listingInr = totalCost * markup;
@@ -163,6 +164,7 @@ jobs:
               if (!p) { console.warn(`\nSKIP: not found: ${handle}`); continue; }
 
               const markup = p.markup ? parseFloat(p.markup.value) : null;
+              const sideCt = p.side ? (parseFloat(p.side.value) || 0) : 0;
               let weights = {};
               try { weights = p.weights ? JSON.parse(p.weights.value) : {}; } catch (e) { weights = {}; }
 
@@ -185,7 +187,7 @@ jobs:
                 if (alloyG == null) { console.warn(`  ? no weight for "${metalVal}" in metal_weights — skipped`); continue; }
 
                 const mUp = silver ? (rates.markup_silver != null ? rates.markup_silver : markup) : markup;
-                const usd = computeUsd(rates, alloyG, metalVal, carat, mUp);
+                const usd = computeUsd(rates, alloyG, metalVal, carat, mUp, sideCt);
                 if (usd == null) { console.warn(`  ? missing rate for ${metalVal}/${carat}ct — skipped`); continue; }
                 updates.push({ id: node.id, price: usd.toFixed(2) });
                 console.log(`  ${metalVal} / ${carat}ct  ->  $${usd.toFixed(2)}`);
