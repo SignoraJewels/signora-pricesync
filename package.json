@@ -1,9 +1,14 @@
 {
-  "name": "signora-sync",
+  "name": "signora-pricesync",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
+  "scripts": {
+    "sync": "node sync-prices.js",
+    "dry": "node sync-prices.js --dry-run"
+  },
   "dependencies": {
-    "dotenv": "^17.4.2",
+    "dotenv": "^16.4.5",
     "node-fetch": "^3.3.2"
   }
 }
