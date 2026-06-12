@@ -41,6 +41,10 @@ jobs:
             if (v.includes('22k')) return '22k';
             return null;
           }
+          function isSilver(metalValue) {
+            const v = String(metalValue).toLowerCase();
+            return v.includes('silver') || v.includes('925') || v.includes('999');
+          }
           function caratRateKey(carat) {
             return 'diamond_usd_' + carat.toFixed(1).replace('.', '_');
           }
@@ -111,15 +115,22 @@ jobs:
             return data.productByHandle;
           }
 
-          function computeUsd(rates, alloyG, karat, carat, markup) {
-            const touch = rates['touch_' + karat];
+          function computeUsd(rates, alloyG, metalVal, carat, markup) {
             const dRate = rates[caratRateKey(carat)];
-            if (touch == null || dRate == null) return null;
-            const pureGold   = alloyG * (touch / 100);
-            const goldInr    = pureGold * rates.gold_24k_rate_inr;
+            if (dRate == null) return null;
+            let metalInr;
+            if (isSilver(metalVal)) {
+              const touch = (rates.touch_silver != null) ? rates.touch_silver : 92.5;  // sterling 925
+              if (rates.silver_rate_inr == null) return null;
+              metalInr = alloyG * (touch / 100) * rates.silver_rate_inr;
+            } else {
+              const touch = rates['touch_' + karatKey(metalVal)];
+              if (touch == null || rates.gold_24k_rate_inr == null) return null;
+              metalInr = alloyG * (touch / 100) * rates.gold_24k_rate_inr;
+            }
             const diamondInr = carat * dRate * rates.usd_to_inr;
-            const laborInr   = (goldInr + diamondInr) * (rates.labor_pct / 100);
-            const totalCost  = goldInr + diamondInr + laborInr;
+            const laborInr   = (metalInr + diamondInr) * (rates.labor_pct / 100);
+            const totalCost  = metalInr + diamondInr + laborInr;
             const listingInr = totalCost * markup;
             const usd        = listingInr / rates.usd_to_inr;
             return Math.round(usd);  // round off to nearest whole dollar
@@ -166,14 +177,15 @@ jobs:
                 const metalVal = opts['metal type - color & purity'] || opts['metal'] || Object.values(opts)[0];
                 const caratVal = opts['carat'] || Object.values(opts)[1];
 
-                const karat = karatKey(metalVal || '');
                 const carat = caratOf(caratVal || '');
                 const alloyG = weights[metalVal];
-                if (!karat)         { console.warn(`  ? karat? "${metalVal}" — skipped`); continue; }
+                const silver = isSilver(metalVal || '');
+                if (!silver && !karatKey(metalVal || '')) { console.warn(`  ? karat? "${metalVal}" — skipped`); continue; }
                 if (carat == null)  { console.warn(`  ? carat? "${caratVal}" — skipped`); continue; }
                 if (alloyG == null) { console.warn(`  ? no weight for "${metalVal}" in metal_weights — skipped`); continue; }
 
-                const usd = computeUsd(rates, alloyG, karat, carat, markup);
+                const mUp = silver ? (rates.markup_silver != null ? rates.markup_silver : markup) : markup;
+                const usd = computeUsd(rates, alloyG, metalVal, carat, mUp);
                 if (usd == null) { console.warn(`  ? missing rate for ${metalVal}/${carat}ct — skipped`); continue; }
                 updates.push({ id: node.id, price: usd.toFixed(2) });
                 console.log(`  ${metalVal} / ${carat}ct  ->  $${usd.toFixed(2)}`);
