@@ -29,10 +29,8 @@ jobs:
           const API_VERSION = '2025-07';
           const DRY_RUN = process.env.DRY_RUN === 'true';
 
-          const PRODUCT_HANDLES = [
-            'emerald-halo-ring-customizer-test',
-            // 'emerald-cut-lab-grown-diamond-halo-engagement-ring-with-pave-band', // live (later)
-          ];
+          // Every product carrying this tag gets auto-priced. No code edits to add products.
+          const PRICE_TAG = 'auto-price';
 
           function karatKey(metalValue) {
             const v = String(metalValue).toLowerCase();
@@ -79,6 +77,23 @@ jobs:
             const f = {};
             data.metaobjectByHandle.fields.forEach((x) => (f[x.key] = parseFloat(x.value)));
             return f;
+          }
+
+          async function getHandlesByTag(tag) {
+            const handles = [];
+            let after = null;
+            do {
+              const data = await gql(`
+                query($q: String!, $after: String) {
+                  products(first: 50, query: $q, after: $after) {
+                    edges { node { handle } }
+                    pageInfo { hasNextPage endCursor }
+                  }
+                }`, { q: 'tag:' + tag, after });
+              data.products.edges.forEach((e) => handles.push(e.node.handle));
+              after = data.products.pageInfo.hasNextPage ? data.products.pageInfo.endCursor : null;
+            } while (after);
+            return handles;
           }
 
           async function getProduct(handle) {
@@ -129,7 +144,10 @@ jobs:
             console.log(DRY_RUN ? '== DRY RUN (no changes written) ==' : '== LIVE SYNC ==');
             const rates = await getRates();
 
-            for (const handle of PRODUCT_HANDLES) {
+            const handles = await getHandlesByTag(PRICE_TAG);
+            console.log(`Found ${handles.length} product(s) tagged "${PRICE_TAG}".`);
+
+            for (const handle of handles) {
               const p = await getProduct(handle);
               if (!p) { console.warn(`\nSKIP: not found: ${handle}`); continue; }
 
