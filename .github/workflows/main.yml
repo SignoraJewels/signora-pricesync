@@ -179,7 +179,7 @@ jobs:
                 const opts = {};
                 node.selectedOptions.forEach((o) => (opts[o.name.toLowerCase()] = o.value));
                 const metalVal = opts['metal type - color & purity'] || opts['metal'] || Object.values(opts)[0];
-                const caratVal = opts['carat'] || Object.values(opts)[1];
+                const caratVal = opts['carat'] || opts['select diamond size'] || Object.values(opts)[1];
 
                 const carat = caratOf(caratVal || '');
                 const silver = isSilver(metalVal || '');
