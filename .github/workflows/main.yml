@@ -122,7 +122,7 @@ jobs:
             const totalCost  = goldInr + diamondInr + laborInr;
             const listingInr = totalCost * markup;
             const usd        = listingInr / rates.usd_to_inr;
-            return Math.round(usd * 100) / 100;
+            return Math.round(usd);  // round off to nearest whole dollar
           }
 
           async function updatePrices(productId, updates) {
