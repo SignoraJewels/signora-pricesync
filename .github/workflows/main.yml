@@ -107,6 +107,10 @@ jobs:
                   id title
                   markup: metafield(namespace: "sjw", key: "markup_multiplier") { value }
                   weights: metafield(namespace: "sjw", key: "metal_weights") { value }
+                  w9:  metafield(namespace: "sjw", key: "weight_9k")  { value }
+                  w10: metafield(namespace: "sjw", key: "weight_10k") { value }
+                  w14: metafield(namespace: "sjw", key: "weight_14k") { value }
+                  w18: metafield(namespace: "sjw", key: "weight_18k") { value }
                   side: metafield(namespace: "sjw", key: "side_diamond_ct") { value }
                   silverWeight: metafield(namespace: "sjw", key: "silver_weight") { value }
                   variants(first: 250) {
@@ -169,21 +173,38 @@ jobs:
               const silverWeight = p.silverWeight ? (parseFloat(p.silverWeight.value) || 0) : 0;
               let weights = {};
               try { weights = p.weights ? JSON.parse(p.weights.value) : {}; } catch (e) { weights = {}; }
+              // Per-karat weight metafields (used when no metal_weights JSON). Weight depends on karat, not color.
+              const karatW = {
+                '9k':  p.w9  ? (parseFloat(p.w9.value)  || 0) : 0,
+                '10k': p.w10 ? (parseFloat(p.w10.value) || 0) : 0,
+                '14k': p.w14 ? (parseFloat(p.w14.value) || 0) : 0,
+                '18k': p.w18 ? (parseFloat(p.w18.value) || 0) : 0,
+              };
+              const hasKaratW = !!(karatW['9k'] || karatW['10k'] || karatW['14k'] || karatW['18k']);
 
               console.log(`\n${p.title}`);
               if (markup == null) { console.warn('  ! No sjw.markup_multiplier set — skipping.'); continue; }
-              if (!Object.keys(weights).length && !silverWeight) { console.warn('  ! No sjw.metal_weights JSON set — skipping.'); continue; }
+              if (!Object.keys(weights).length && !silverWeight && !hasKaratW) { console.warn('  ! No metal weights (metal_weights JSON / weight_9k.. / silver_weight) set — skipping.'); continue; }
 
               const updates = [];
               for (const { node } of p.variants.edges) {
                 const opts = {};
                 node.selectedOptions.forEach((o) => (opts[o.name.toLowerCase()] = o.value));
                 const metalVal = opts['metal type - color & purity'] || opts['metal'] || Object.values(opts)[0];
-                const caratVal = opts['carat'] || opts['select diamond size'] || Object.values(opts)[1];
+                const caratVal = opts['carat'] || opts['select diamond size'] || opts['diamond weight'] || opts['diamond size'] || Object.values(opts)[1];
 
                 const carat = caratOf(caratVal || '');
                 const silver = isSilver(metalVal || '');
-                const alloyG = silver ? silverWeight : weights[metalVal];
+                // Weight resolution: metal_weights JSON (by exact value) takes priority for older
+                // products; otherwise fall back to per-karat weight_9k/10k/14k/18k fields.
+                let alloyG;
+                if (silver) {
+                  alloyG = silverWeight;
+                } else {
+                  const k = karatKey(metalVal || '');
+                  if (weights[metalVal] != null) alloyG = weights[metalVal];
+                  else if (k && karatW[k]) alloyG = karatW[k];
+                }
                 if (!silver && !karatKey(metalVal || '')) { console.warn(`  ? karat? "${metalVal}" — skipped`); continue; }
                 if (carat == null)  { console.warn(`  ? carat? "${caratVal}" — skipped`); continue; }
                 if (alloyG == null || alloyG === 0) { console.warn(`  ? no weight for "${metalVal}" — skipped`); continue; }
